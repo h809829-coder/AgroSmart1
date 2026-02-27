@@ -7,10 +7,17 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 const db = new Database("agro_smart.db");
 
-// Initialize Database
+// Use Railway PORT
+const PORT = process.env.PORT || 5000;
+
+app.use(express.json());
+
+/* =========================
+   DATABASE INITIALIZATION
+========================= */
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS crops (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,14 +43,15 @@ db.exec(`
   );
 `);
 
-// Seed data if empty
+// Seed crops if empty
 const cropCount = db.prepare("SELECT COUNT(*) as count FROM crops").get() as { count: number };
+
 if (cropCount.count === 0) {
   const insert = db.prepare(`
     INSERT INTO crops (name, soil_type, season, water_requirement, budget, fertilizer, irrigation_schedule, expected_yield)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  
+
   const sampleCrops = [
     ["Rice", "Clay", "Kharif", "High", "Medium", "Urea, DAP", "Every 2-3 days", "4-6 tons/hectare"],
     ["Wheat", "Loamy", "Rabi", "Medium", "Medium", "NPK, Urea", "Every 10-15 days", "3-5 tons/hectare"],
@@ -58,21 +66,20 @@ if (cropCount.count === 0) {
   sampleCrops.forEach(crop => insert.run(...crop));
 }
 
-app.use(express.json());
+/* =========================
+   API ROUTES
+========================= */
 
-// API Routes
-fetch("/api/recommend", {
-  method: "POST",
-}){
+// 🔥 FIXED: POST route (this fixes 405 error)
+app.post("/api/recommend", (req, res) => {
   const { location, soilType, season, waterAvailability, budget } = req.body;
 
-  // Simple rule-based logic
   const stmt = db.prepare(`
     SELECT * FROM crops 
     WHERE soil_type = ? AND season = ? AND water_requirement = ? AND budget = ?
     LIMIT 1
   `);
-  
+
   let crop = stmt.get(soilType, season, waterAvailability, budget) as any;
 
   // Fallback if no exact match
@@ -86,7 +93,8 @@ fetch("/api/recommend", {
 
   if (crop) {
     db.prepare(`
-      INSERT INTO recommendations (location, soil_type, season, water_availability, budget, recommended_crop)
+      INSERT INTO recommendations 
+      (location, soil_type, season, water_availability, budget, recommended_crop)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(location, soilType, season, waterAvailability, budget, crop.name);
   }
@@ -102,12 +110,15 @@ fetch("/api/recommend", {
   });
 });
 
+/* =========================
+   WEATHER API
+========================= */
+
 app.get("/api/weather", async (req, res) => {
   const { lat, lon } = req.query;
   const apiKey = process.env.OPENWEATHER_API_KEY;
 
   if (!apiKey) {
-    // Return mock data if no API key
     return res.json({
       main: { temp: 28, humidity: 65 },
       weather: [{ main: "Clear", description: "sunny day" }],
@@ -116,24 +127,39 @@ app.get("/api/weather", async (req, res) => {
   }
 
   try {
-    const response = await fetch("/api/weather?lat=...&lon=...")
+    const response = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`
+    );
+
     const data = await response.json();
+
     res.json({
       ...data,
-      alerts: data.main.temp > 35 ? ["Heatwave warning! Increase irrigation."] : ["Normal weather conditions."]
+      alerts:
+        data.main.temp > 35
+          ? ["Heatwave warning! Increase irrigation."]
+          : ["Normal weather conditions."]
     });
+
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch weather data" });
   }
 });
 
+/* =========================
+   OTHER ROUTES
+========================= */
+
 app.get("/api/history", (req, res) => {
-  const history = db.prepare("SELECT * FROM recommendations ORDER BY timestamp DESC LIMIT 10").all();
+  const history = db
+    .prepare("SELECT * FROM recommendations ORDER BY timestamp DESC LIMIT 10")
+    .all();
   res.json(history);
 });
 
 app.get("/api/crop/:name", (req, res) => {
   const crop = db.prepare("SELECT * FROM crops WHERE name = ?").get(req.params.name);
+
   if (crop) {
     res.json(crop);
   } else {
@@ -141,22 +167,31 @@ app.get("/api/crop/:name", (req, res) => {
   }
 });
 
-// Vite middleware for development
+/* =========================
+   VITE CONFIG
+========================= */
+
 if (process.env.NODE_ENV !== "production") {
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: "spa",
-  });
-  app.use(vite.middlewares);
+  (async () => {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+
+    app.use(vite.middlewares);
+  })();
 } else {
   app.use(express.static(path.join(__dirname, "dist")));
+
   app.get("*", (req, res) => {
     res.sendFile(path.join(__dirname, "dist", "index.html"));
   });
 }
 
-const PORT = process.env.PORT || 5000;
+/* =========================
+   START SERVER
+========================= */
 
 app.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
