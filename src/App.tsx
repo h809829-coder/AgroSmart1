@@ -498,7 +498,7 @@ const ResultPage = () => {
     // Fetch weather
     const fetchWeather = async () => {
       try {
-        const res = await fetch('/api/weather?lat=17.3850&lon=78.4867'); // Default to Hyderabad coords for demo
+        const res = await fetch("/api/recommend"); // Default to Hyderabad coords for demo
         const data = await res.json();
         setWeather(data);
       } catch (err) {
