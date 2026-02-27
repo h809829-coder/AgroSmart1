@@ -61,7 +61,7 @@ if (cropCount.count === 0) {
 app.use(express.json());
 
 // API Routes
-app.post("/api/recommend", (req, res) => {
+app.get("/api/recommend", ...){
   const { location, soilType, season, waterAvailability, budget } = req.body;
 
   // Simple rule-based logic
