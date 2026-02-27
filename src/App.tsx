@@ -341,11 +341,11 @@ const FormPage = () => {
     // Simulate processing
     setTimeout(async () => {
       try {
-        const response = await fetch('/api/recommend', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
-        });
+        const response = await fetch("/api/recommend", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(formData),
+});
         const data = await response.json();
         setLoading(false);
         navigate('/result', { state: { recommendation: data.recommendation, input: formData } });
