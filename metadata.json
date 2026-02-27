@@ -1,0 +1,5 @@
+{
+  "name": "Agro Smart",
+  "description": "Farmer Crop Planning & Advisory Web Application with smart recommendations and weather alerts.",
+  "requestFramePermissions": ["geolocation"]
+}
